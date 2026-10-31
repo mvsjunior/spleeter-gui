@@ -213,6 +213,64 @@ Sem cortes de 20 ms ou mais em nenhum dos casos. Quando a soma passa de 0 dBFS, 
 
 Abertura do app, depois do mixer: de 0,41 s a 0,44 s em 4 execuções, com 94 MB. O mixer não pesa enquanto não é usado.
 
+## Mudança de tom
+
+Música de 243,9 s, com os 5 stems do Spleeter, em uma saída de som virtual. A carga é de 4 processos em laço com `nice 10`, simulando uma separação; o Firefox também estava aberto. Um bloco tem 2048 quadros, ou 46 ms. O `pylibrb` ocupa 3,3 MB.
+
+Custo do Rubber Band fora do app, em uma mistura de 60 s, com a CPU livre:
+
+| Motor | Média por bloco | Pior bloco | Uso de uma thread |
+|---|---|---|---|
+| `faster` | de 2,7 a 2,9 ms | 7,6 ms | cerca de 6% |
+| `finer` | de 7,3 a 7,6 ms | 22,5 ms | cerca de 16% |
+
+No `Player` real, em 45 s, o custo foi bem maior:
+
+| Motor | Tom | Carga | Falhas de áudio | Uso de uma thread |
+|---|---|---|---|---|
+| Sem mudança | original | não | 0 | 1% |
+| Sem mudança | original | sim | 0 | 1% |
+| `finer` | +2 | não | 2 | 36% |
+| `finer` | +2 | sim | 17 | 50% |
+| `faster` | +2 | não | 0 | 14% |
+| `faster` | +2 | sim | 0 | 22% |
+| `faster` | -5 | sim | 5 | 22% |
+
+O `faster` foi escolhido. Com a máquina aquecida, sob carga, o resultado piorou muito, e com ele veio a comparação de buffer, em 30 s e a cerca de 90 °C, duas vezes cada:
+
+| Buffer pedido | Buffer real | Falhas de áudio |
+|---|---|---|
+| `high` | 46 ms | 70 e 87 |
+| 0,5 s | 557 ms | 0 e 3 |
+
+Numa segunda série, em três repetições de 30 s entre 84 °C e 79 °C, os valores variaram mais com o estado da CPU do que com o buffer: 0,15 s teve 44, 12 e 6 falhas; 0,25 s teve 34, 14 e 0; 0,35 s teve 16, 27 e 0. Por isso, o buffer de 0,5 s reduz o problema, mas não o elimina. O valor de 0,5 s não foi repetido nessa segunda série.
+
+Na interface real, por 60 s, trocando tom, posição e pausa durante a reprodução, entre 89 °C e 92 °C, a versão final teve 3 falhas sem carga e 3 com carga. A contagem pode incluir os reinícios da saída de som ao entrar e sair do tom original, o que não foi separado.
+
+Exportar os 5 stems em FLAC, com a CPU quente: 3,7 s no tom original e 76,5 s com +2, porque o volume máximo é medido antes e o tom é calculado duas vezes.
+
+Trocar o tom com o Rubber Band em andamento gerou um pico: em um tom puro de nível 0,30, chegou a 0,41 em um semitom e a 0,46 em dez. Com a troca feita em silêncio, ficou abaixo de 0,34.
+
+## Acordes
+
+Mesma música, sem gabarito: o site de cifras consultado recusou o acesso. Por isso, a tabela mede concordância com o Chordino, não acerto. A comparação usa só a fundamental e se o acorde é maior ou menor.
+
+| Comparação | Concordância |
+|---|---|
+| Análise própria, nos stems, com o Chordino nos mesmos stems (baixo, piano e outros) | 77,0% |
+| Análise própria, nos stems, com o Chordino na música original | 65,2% |
+| Chordino na música original com o Chordino nos mesmos stems | 73,3% |
+
+| Item | Análise própria | Chordino (`chord-extractor`) |
+|---|---|---|
+| Tempo | 0,99 s; 2,56 s e 2,90 s com a CPU quente | de 7,7 s a 29,4 s |
+| Disco | nenhum além do NumPy | 423 MB, e exige compilar o `vamp` |
+| Memória de pico | não medida à parte | de 365 MB a 469 MB |
+
+A análise própria achou 88 trechos, todos com acordes do tom de Si maior (B, C#m, E, F#, G#m). Isso indica coerência, mas não prova que estejam corretos. A abertura da música pelo mixer, com a análise incluída, levou de 4,5 s a 4,6 s.
+
+O protótipo com tétrades marcou quase todos os acordes maiores como sétima (E7, B7, F#7) nessa música, enquanto o Chordino os marcou em geral sem sétima. Por isso, ficaram só as tríades.
+
 ## Demucs pela interface
 
 Áudio real, janela real em X11, tudo escolhido pelo formulário, rodando em sequência e com a CPU aquecendo:

@@ -99,6 +99,21 @@ wheels = [
 ]
 
 [[package]]
+name = "pylibrb"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c9/96/4ed0cedacc7763c11b44a238240ae037f2290120fd619039aadff466a02d/pylibrb-0.1.2.tar.gz", hash = "sha256:206b5857dd4d073d7bc87a4aeb22d7d235e671b8256c999c41ffbe098228a3ba", size = 33254, upload-time = "2023-12-03T22:11:00.74Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ec/32/1afbc08d701bce9b36f50825f3cb9028b0cee1f0caacd0342cbcf4bb3b13/pylibrb-0.1.2-cp312-abi3-macosx_10_14_x86_64.whl", hash = "sha256:24bd04333ca0e8a08f6763de16c3932adb1d45ff8b07103c388322b8e3a4bc98", size = 1600432, upload-time = "2023-12-03T22:10:41.878Z" },
+    { url = "https://files.pythonhosted.org/packages/f6/44/09da209c85c1a669d0947dca139d116c78fe452b9bcbc3c64bc3972f729a/pylibrb-0.1.2-cp312-abi3-macosx_11_0_arm64.whl", hash = "sha256:60380fd59fb286700d3f950e9db6388cee1b27a1ab27a1c6ee8e509fd9cd68cf", size = 1578248, upload-time = "2023-12-03T22:10:43.839Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/dc/6611dd8376ffcb388d53cc9f3c05417091e74e828b2b3e04ec08cfaa2445/pylibrb-0.1.2-cp312-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7088cb716fe07540f28bd26bf11315eec73fe6578a7d1d7d55d07019190098df", size = 2168347, upload-time = "2023-12-03T22:10:45.164Z" },
+    { url = "https://files.pythonhosted.org/packages/f8/e0/5cbac14c76f8e3cf151c2b6444fe340eeaf9f3097016a5ad205bbc4e753f/pylibrb-0.1.2-cp312-abi3-win_amd64.whl", hash = "sha256:8ab810bd58581da194b4c4bfb8883033dc122a63842ba8d27e2faad084761fe6", size = 1982171, upload-time = "2023-12-03T22:10:47.007Z" },
+]
+
+[[package]]
 name = "pyside6-essentials"
 version = "6.12.0"
 source = { registry = "https://pypi.org/simple" }
@@ -202,6 +217,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "numpy" },
+    { name = "pylibrb" },
     { name = "pyside6-essentials" },
     { name = "sounddevice" },
 ]
@@ -216,6 +232,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "numpy", specifier = ">=2" },
+    { name = "pylibrb", specifier = ">=0.1.2,<0.2" },
     { name = "pyside6-essentials", specifier = ">=6.12,<6.13" },
     { name = "sounddevice", specifier = ">=0.5" },
 ]

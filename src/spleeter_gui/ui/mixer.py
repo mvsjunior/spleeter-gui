@@ -36,6 +36,7 @@ from spleeter_gui.core.audio import (
     memory_needed_bytes,
     waveform_peaks,
 )
+from spleeter_gui.core.chords import ChordChart, analyze_chords
 from spleeter_gui.core.player import Player
 from spleeter_gui.core.preflight import available_memory_mb, disk_shortage, required_bytes
 from spleeter_gui.core.probe import ProbeError, probe
@@ -51,6 +52,10 @@ STEM_LABELS = {
     "other": "Outros",
     "accompaniment": "Acompanhamento",
 }
+CHORDS_HELP = (
+    "Estimativa automática de acordes maiores e menores. Pode errar, sobretudo em harmonias "
+    "mais complexas."
+)
 _LOSSY = f"{EXPORT_BITRATE.removesuffix('k')} kbps"
 EXPORT_FILTERS = {
     "WAV, 16 bits (*.wav)": ".wav",
@@ -62,6 +67,7 @@ EXPORT_FILTERS = {
 _PEAK_BUCKETS = 2000
 _POSITION_TICKS_PER_SECOND = 10
 _REFRESH_MS = 100
+_MAX_SEMITONES = 6  # enough to reach any key; beyond it, the sound suffers more
 
 
 @dataclass
@@ -103,13 +109,15 @@ def _scan(folder: Path) -> list[tuple[str, Path, float]]:
     return [(name, path, probe(path).duration) for name, path in find_stems(folder).items()]
 
 
-def _load(found: list[tuple[str, Path, float]], report: Callable[[float], None]) -> list[_Stem]:
+def _load(
+    found: list[tuple[str, Path, float]], report: Callable[[float], None]
+) -> tuple[list[_Stem], ChordChart]:
     stems = []
     for index, (name, path, duration) in enumerate(found):
         report(index / len(found))
         samples = decode(path, duration)
         stems.append(_Stem(name, path, samples, waveform_peaks(samples, _PEAK_BUCKETS)))
-    return stems
+    return stems, analyze_chords([(stem.name, stem.samples) for stem in stems], SAMPLE_RATE)
 
 
 def _stem_label(name: str) -> str:
@@ -159,6 +167,8 @@ class MixerPanel(QWidget):
         self._stems: list[_Stem] = []
         self._rows: list[_StemRow] = []
         self._player: Player | None = None
+        self._chart: ChordChart | None = None
+        self._semitones = 0
 
         self._open = QPushButton("Abrir pasta de stems…")
         self._open.clicked.connect(self._on_choose_folder)
@@ -177,6 +187,19 @@ class MixerPanel(QWidget):
         self._export = QPushButton("Exportar mistura…")
         self._export.clicked.connect(self._on_export)
 
+        self._key_down = self._key_button("−", "Abaixa o tom em meio tom", -1)
+        self._key_up = self._key_button("+", "Sobe o tom em meio tom", 1)
+        self._key = QLabel()
+        self._chord = QLabel()
+        chord_font = self._chord.font()
+        chord_font.setPointSizeF(chord_font.pointSizeF() * 1.6)
+        chord_font.setBold(True)
+        self._chord.setFont(chord_font)
+        self._chord.setToolTip(CHORDS_HELP)
+        self._chord.setMinimumWidth(self._chord.fontMetrics().horizontalAdvance("C#m") + 4)
+        self._next_chord = QLabel()
+        self._next_chord.setToolTip(CHORDS_HELP)
+
         self._progress = QProgressBar()
         self._progress.setRange(0, 100)
         self._progress.hide()
@@ -194,6 +217,18 @@ class MixerPanel(QWidget):
         transport.addWidget(self._time)
         transport.addWidget(self._export)
         controls.addLayout(transport)
+        music = QHBoxLayout()
+        music.addWidget(QLabel("Tom:"))
+        music.addWidget(self._key_down)
+        music.addWidget(self._key)
+        music.addWidget(self._key_up)
+        music.addSpacing(24)
+        music.addWidget(QLabel("Acorde:"))
+        music.addWidget(self._chord)
+        music.addSpacing(12)
+        music.addWidget(self._next_chord)
+        music.addStretch()
+        controls.addLayout(music)
         controls.addLayout(self._grid, 1)
         self._controls.hide()
 
@@ -217,6 +252,15 @@ class MixerPanel(QWidget):
         self._space.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
         self._space.activated.connect(self._on_play_pause)
         self._update_state()
+
+    def _key_button(self, text: str, tip: str, step: int) -> QPushButton:
+        button = QPushButton(text)
+        button.setToolTip(tip)
+        button.setFixedWidth(button.sizeHint().height())
+        # With focus, the space bar would press it instead of playing and pausing.
+        button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        button.clicked.connect(lambda: self._set_semitones(self._semitones + step))
+        return button
 
     def open_folder(self, folder: Path) -> None:
         """Reads the stems of a folder, off the interface thread."""
@@ -243,6 +287,8 @@ class MixerPanel(QWidget):
                 widget.deleteLater()
         self._rows = []
         self._stems = []
+        self._chart = None
+        self._semitones = 0
         self._folder = None
         self._title.setText("Abra uma pasta com os stems de uma música.")
         self._title.setToolTip("")
@@ -309,7 +355,9 @@ class MixerPanel(QWidget):
         )
         return answer == QMessageBox.StandardButton.Yes
 
-    def _on_loaded(self, worker: _Worker, stems: list[_Stem] | None, error: str | None) -> None:
+    def _on_loaded(
+        self, worker: _Worker, loaded: tuple[list[_Stem], ChordChart] | None, error: str | None
+    ) -> None:
         if worker is not self._loader:
             return
         self._loader = None
@@ -317,6 +365,7 @@ class MixerPanel(QWidget):
         if error is not None:
             self._fail_loading(error)
             return
+        stems, self._chart = loaded
         self._stems = stems
         for index, stem in enumerate(stems):
             row = _StemRow(stem, self._on_controls_changed)
@@ -333,6 +382,7 @@ class MixerPanel(QWidget):
         )
         self._position.setRange(0, self._seconds(self._player.frames) * _POSITION_TICKS_PER_SECOND)
         self._set_position_display(0)
+        self._show_key()
         self._controls.show()
         self._set_status("")
         self._update_state()
@@ -355,6 +405,26 @@ class MixerPanel(QWidget):
         for row, gain in zip(self._rows, gains, strict=True):
             row.wave.set_dimmed(gain == 0.0)
         self._update_state()
+
+    def _set_semitones(self, semitones: int) -> None:
+        if self._player is None:
+            return
+        self._semitones = max(-_MAX_SEMITONES, min(semitones, _MAX_SEMITONES))
+        self._player.set_semitones(self._semitones)
+        self._show_key()
+        self._show_position(self._player.position if not self._player.is_playing else None)
+
+    def _show_key(self) -> None:
+        self._key.setText(f"{self._semitones:+d}" if self._semitones else "original")
+        self._key_down.setEnabled(self._semitones > -_MAX_SEMITONES)
+        self._key_up.setEnabled(self._semitones < _MAX_SEMITONES)
+
+    def _show_chord(self, seconds: float) -> None:
+        current, following = self._chart.at(seconds)
+        self._chord.setText(self._chart.name(current, self._semitones))
+        self._next_chord.setText(
+            f"depois: {self._chart.name(following, self._semitones)}" if following else ""
+        )
 
     def _on_play_pause(self) -> None:
         player = self._player
@@ -395,6 +465,7 @@ class MixerPanel(QWidget):
         self._position.setValue(round(frame / SAMPLE_RATE * _POSITION_TICKS_PER_SECOND))
         self._position.blockSignals(False)
         self._show_time(frame / SAMPLE_RATE)
+        self._show_chord(frame / SAMPLE_RATE)
         for row in self._rows:
             row.wave.set_cursor(frame / total)
 
@@ -443,12 +514,15 @@ class MixerPanel(QWidget):
             return
         samples = [stem.samples for stem in self._stems]
         gains = self._gains()
+        semitones = self._semitones
         self._stop_export = False
         self._set_status(f"Exportando {path.name}…")
         self._progress.setValue(0)
         self._progress.show()
         self._exporter = self._start_worker(
-            lambda report: export_mix(samples, gains, path, report, lambda: self._stop_export),
+            lambda report: export_mix(
+                samples, gains, path, report, lambda: self._stop_export, semitones
+            ),
             self._on_exported,
         )
         self._update_state()

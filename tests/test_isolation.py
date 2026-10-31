@@ -21,7 +21,7 @@ def test_opening_the_interface_never_loads_engine_libraries():
     code = """
 import sys
 import spleeter_gui.ui.main_window
-forbidden = ("tensorflow", "torch", "spleeter", "demucs", "numpy", "sounddevice")
+forbidden = ("tensorflow", "torch", "spleeter", "demucs", "numpy", "sounddevice", "pylibrb")
 print([m for m in sys.modules if m.split(".")[0] in forbidden])
 """
     result = subprocess.run(

@@ -4,7 +4,7 @@ Spleeter GUI: aplicativo desktop para Linux, de uso **somente local**, que separ
 
 ## Estado atual
 
-**Fases 0 a 6 concluídas; o plano terminou.** O app tem fila, cancelamento, histórico, mixer, Spleeter, Demucs e instalação no menu. O código está em `github.com/mvsjunior/spleeter-gui`. Pendências de uso, como avaliar o mixer de ouvido, dependem do usuário.
+**Fases 0 a 7 concluídas; o plano terminou.** O app tem fila, cancelamento, histórico, mixer com mudança de tom e acordes, Spleeter, Demucs e instalação no menu. O código está em `github.com/mvsjunior/spleeter-gui`. Pendências de uso, como avaliar de ouvido o mixer, a mudança de tom e os acordes, dependem do usuário.
 
 Ao iniciar uma sessão:
 1. Leia `docs/PLANO_IMPLEMENTACAO.md` e continue pela primeira tarefa desmarcada.
@@ -46,6 +46,9 @@ Sob carga, a CPU chega a 99 °C e sofre limitação térmica, com o clock caindo
 | Demucs como opção avançada, com aviso de tempo | Decisão do usuário na Fase 0: `htdemucs` levou 4,36x a duração e `htdemucs_ft`, 20,88x no trecho |
 | SQLite (`sqlite3`) para histórico e `QSettings` para preferências | Sem Redis, Celery ou servidor |
 | Mixer, NumPy e `sounddevice` carregados só no primeiro uso | O import do NumPy levou até 530 ms, e abrir rápido é a prioridade 1 |
+| Tom em tempo real com `pylibrb` (Rubber Band), motor `faster`, aplicado à mistura | Custo não cresce com os stems. O motor `finer` teve falhas de áudio até com a CPU livre |
+| Buffer de 0,5 s só com o tom alterado | Reduz falhas de áudio sob carga, sem atrasar o mudo e a pausa no tom original |
+| Acordes analisados com NumPy ao carregar a música, sem salvar | Leva de 1 a 3 s e não exige ambiente novo; o Chordino ocupou 423 MB e exigiu compilar |
 | Saída escrita em pasta temporária e movida ao concluir | Falha ou cancelamento não deixa resultado parcial no destino |
 | Motores chamados **pela CLI** deles | Evita acoplamento às APIs internas e a wrappers próprios |
 
@@ -82,7 +85,9 @@ spleeter-gui/
 │   │   ├── probe.py           # duração e metadados via ffprobe
 │   │   ├── storage.py         # histórico em SQLite
 │   │   ├── audio.py           # decodificar, mixar e exportar stems (usa NumPy)
-│   │   └── player.py          # reprodução em um único callback (usa sounddevice)
+│   │   ├── player.py          # reprodução em um único callback (usa sounddevice)
+│   │   ├── pitch.py           # mudança de tom em tempo real (usa pylibrb)
+│   │   └── chords.py          # estimativa de acordes a partir dos stems (usa NumPy)
 │   ├── engines/
 │   │   ├── base.py            # contrato dos motores
 │   │   ├── spleeter.py
@@ -159,6 +164,12 @@ Resultados da Fase 0:
 - **Adicione o lote inteiro à fila de uma vez.** Um job que falha já ao iniciar esvazia a fila na hora e emitiria `drained` antes de os outros entrarem.
 - **Não importe `numpy` nem `sounddevice` em nada que `main_window.py` carrega ao abrir.** `test_isolation.py` verifica isso.
 - **A reprodução não normaliza.** Ela limita os picos, e a exportação reduz o volume quando a soma passa de 0 dBFS. Nesse caso, a reprodução fica um pouco mais alta.
+- **`latency="high"` dá só um bloco de buffer aqui (46 ms).** Peça a latência em segundos quando precisar de folga.
+- **O custo do Rubber Band medido fora do app engana.** O motor `finer` usou 16% de uma thread isolado e 36% dentro do callback, e o `faster` passou de 6% para 14%. Meça com o `Player` real.
+- **A mudança de tom sob carga e calor ainda pode falhar.** Com a CPU acima de 85 °C e outros processos ativos, sobram algumas falhas de áudio mesmo com o buffer de 0,5 s. No tom original não houve nenhuma.
+- **Trocar o tom com o Rubber Band em andamento gera um pico de volume.** Por isso o tom só muda em silêncio, com o mesmo fade de um salto de posição.
+- **Modelos de acordes com sétima são marcados em quase todo trecho.** Quatro notas acumulam mais energia que três, então E vira E7. Por isso só há tríades maiores e menores.
+- **`pylibrb` pode imprimir `nanobind: leaked` ao fechar o Python.** A saída continua com código 0 e nada indica um problema de uso.
 - **Testar som sem tocar nas caixas:** crie um `module-null-sink` e rode o app com `PIPEWIRE_NODE=<nome>`. O monitor dele pode ser gravado com `parec`.
 - **Com a tela bloqueada, a placa de som some.** O sistema retira o acesso a `/dev/snd` da sessão inativa, `aplay -l` não acha placa e o PipeWire mostra só `auto_null`. Não é defeito do app.
 - **A CLI do Demucs não tem início nem duração.** O trecho é cortado antes com `ffmpeg`.

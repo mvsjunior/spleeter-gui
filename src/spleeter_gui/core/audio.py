@@ -11,6 +11,8 @@ from pathlib import Path
 
 import numpy as np
 
+from spleeter_gui.core.pitch import PitchShifter
+
 SAMPLE_RATE = 44100
 CHANNELS = 2
 BYTES_PER_FRAME = CHANNELS * 4
@@ -166,12 +168,30 @@ def total_frames(stems: Sequence[np.ndarray]) -> int:
     return max((len(samples) for samples in stems), default=0)
 
 
+def _mix_writer(
+    stems: Sequence[np.ndarray], gains: Sequence[float], semitones: int
+) -> Callable[[np.ndarray, int], None]:
+    """A function that writes the mix at a position. In another key, positions must be in order."""
+    if not semitones:
+        return lambda block, position: render(block, stems, position, gains, gains)
+    shifter = PitchShifter(semitones, SAMPLE_RATE, CHANNELS)
+    fed = 0
+
+    def feed(block: np.ndarray) -> None:
+        nonlocal fed
+        render(block, stems, fed, gains, gains)
+        fed += len(block)
+
+    return lambda block, position: shifter.read(block, feed)
+
+
 def export_mix(
     stems: Sequence[np.ndarray],
     gains: Sequence[float],
     path: Path,
     on_progress: Callable[[float], None] = lambda value: None,
     should_stop: Callable[[], bool] = lambda: False,
+    semitones: int = 0,
 ) -> ExportResult:
     """Encodes the mix to `path`, scaled down if it would clip. Nothing partial stays behind."""
     encoder = EXPORT_ENCODERS.get(path.suffix.lower())
@@ -181,10 +201,11 @@ def export_mix(
     block = np.empty((_EXPORT_BLOCK_FRAMES, CHANNELS), dtype=np.float32)
 
     peak = 0.0
+    write_mix = _mix_writer(stems, gains, semitones)
     for position in range(0, total, _EXPORT_BLOCK_FRAMES):
         if should_stop():
             raise ExportCancelled
-        render(block, stems, position, gains, gains)
+        write_mix(block, position)
         peak = max(peak, float(np.abs(block).max()))
         on_progress(_PEAK_PASS_SHARE * position / total)
     scale = _NORMALIZED_PEAK / peak if peak > 1.0 else 1.0
@@ -198,12 +219,13 @@ def export_mix(
         with tempfile.TemporaryFile() as errors:
             process = subprocess.Popen(command, stdin=subprocess.PIPE, stderr=errors)
             stopped = False
+            write_mix = _mix_writer(stems, gains, semitones)
             try:
                 for position in range(0, total, _EXPORT_BLOCK_FRAMES):
                     if should_stop():
                         stopped = True
                         break
-                    render(block, stems, position, gains, gains)
+                    write_mix(block, position)
                     count = min(_EXPORT_BLOCK_FRAMES, total - position)
                     process.stdin.write((block[:count] * scale).tobytes())
                     share = _PEAK_PASS_SHARE + (1 - _PEAK_PASS_SHARE) * position / total

@@ -23,6 +23,8 @@ Aplicativo desktop para Linux que separa músicas em stems (voz, bateria, baixo 
 - **Fila:** várias músicas em sequência, com reordenação e cancelamento. A falha de uma não interrompe as outras.
 - **Opções dos motores:** modelo, trecho, formato (WAV, MP3, FLAC, OGG, M4A, WMA) e opções avançadas de cada um.
 - **Mixer:** volume, solo e mudo por stem, forma de onda e exportação da mistura.
+- **Mudança de tom:** de 6 semitons abaixo a 6 acima, durante a reprodução e na exportação.
+- **Acordes:** mostra o acorde do momento e o seguinte, acompanhando o tom escolhido.
 - **Histórico:** reabrir a pasta, abrir no mixer ou repetir uma separação com as mesmas opções.
 - **Sem resultado parcial:** falha ou cancelamento não deixa arquivos incompletos no destino.
 
@@ -66,6 +68,10 @@ O resultado fica em `<destino>/<música>-<modelo>/`, com um arquivo por stem. Ca
 
 Abra a aba **Mixer** e escolha uma pasta de stems, ou use **Abrir no mixer** ao fim de uma separação ou na aba **Histórico**. Ao exportar, se a soma passar de 0 dBFS, o volume da mistura é reduzido para evitar distorção. O botão **Fechar** libera a memória ocupada pela música.
 
+Os botões **−** e **+** de **Tom** mudam a música em meio tom, sem alterar a velocidade, e a exportação usa o tom escolhido. Com o tom alterado, volume, mudo e pausa respondem cerca de meio segundo depois, e com a CPU quente e ocupada podem ocorrer pequenas falhas no som.
+
+**Acorde** mostra o acorde atual e o seguinte. É uma estimativa automática, limitada a acordes maiores e menores: uma tétrade como E7 aparece como E, e harmonias mais complexas podem sair erradas. A voz e a bateria ficam fora da análise, que usa os outros stems.
+
 ### Modelos
 
 Tempos medidos em um i5-3230M (2 núcleos, 4 threads, sem GPU) com uma música de 4 minutos. Variam muito com o processador e a temperatura. Veja os detalhes em [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
@@ -107,3 +113,5 @@ uv run ruff check . && uv run ruff format .
 Distribuído sob a [licença MIT](LICENSE).
 
 Este projeto não é afiliado à Deezer nem à Meta, autoras do Spleeter e do Demucs. Ele não inclui esses motores nem seus modelos: o instalador e o app os obtêm das fontes originais, e cada dependência segue a própria licença, como a LGPL do PySide6.
+
+O código deste projeto é MIT, mas a mudança de tom depende de `pylibrb` e Rubber Band, ambos sob GPL. Quem distribuir o app junto com eles precisa cumprir também os termos da GPL.

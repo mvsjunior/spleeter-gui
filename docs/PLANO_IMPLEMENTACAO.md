@@ -11,6 +11,7 @@ Arquitetura, decisões e armadilhas estão em `../CLAUDE.md`. Este arquivo defin
 | 4 | Mixer de stems | 3 |
 | 5 | Demucs, como opção avançada com aviso de tempo | 3 |
 | 6 | Instalação no menu do XFCE | 3 |
+| 7 | Mudança de tom e acordes no mixer | 4 |
 
 As Fases 4, 5 e 6 são independentes entre si.
 
@@ -149,6 +150,17 @@ Aprovada pela Fase 0, como opção avançada; o Spleeter continua sendo o padrã
 - [x] Sugerir ao usuário a remoção das imagens Docker do `spleeter-web`
 
 Empacotamento em AppImage, Flatpak ou `.deb` não é necessário para uso em uma só máquina.
+
+## Fase 7: mudança de tom e acordes
+
+Pedida pelo usuário depois do fim do plano original. Medições em `BENCHMARKS.md`.
+
+- [x] Validar `pylibrb` nesta CPU e medir o custo em tempo real
+- [x] Comparar o Chordino com uma análise própria em NumPy
+- [x] Mudar o tom durante a reprodução, com posição, pausa, salto e fim da música corretos
+- [x] Aplicar o tom à exportação
+- [x] Mostrar o acorde atual e o seguinte, acompanhando o tom
+- [ ] Avaliar de ouvido a qualidade do tom e a precisão dos acordes em outras músicas (usuário)
 
 ## Riscos
 

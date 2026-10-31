@@ -9,7 +9,7 @@ import pytest
 import sounddevice as sd
 from PySide6.QtCore import QPoint, QSettings, Qt
 
-from spleeter_gui.core.audio import SAMPLE_RATE, decode
+from spleeter_gui.core.audio import SAMPLE_RATE, decode, export_mix
 from spleeter_gui.core.models import JobStatus
 from spleeter_gui.core.storage import History
 from spleeter_gui.ui.main_window import MainWindow
@@ -48,6 +48,18 @@ def stems_folder(tmp_path) -> Path:
     write_wav(folder / "vocals.wav", noise(2.0, seed=1))
     write_wav(folder / "accompaniment.wav", noise(2.0, seed=2))
     return folder
+
+
+def chord_song() -> np.ndarray:
+    """C major and then G major, for three seconds each."""
+
+    def triad(*midi_notes: int) -> np.ndarray:
+        t = np.arange(SAMPLE_RATE * 3) / SAMPLE_RATE
+        hz = 440.0 * 2 ** ((np.array(midi_notes)[:, np.newaxis] - 69) / 12)
+        wave = (0.2 * np.sin(2 * np.pi * hz * t)).sum(axis=0).astype(np.float32)
+        return np.stack([wave, wave], axis=1)
+
+    return np.concatenate([triad(48, 52, 55, 60), triad(55, 59, 62, 67)])
 
 
 def load(qtbot, panel: MixerPanel, folder: Path) -> None:
@@ -400,3 +412,73 @@ print(loaded - base, rss() - base)
     loaded, after = map(float, out.stdout.split())
     assert loaded == pytest.approx(60 * SAMPLE_RATE * 8 / 2**20, rel=0.1)
     assert after < 20
+
+
+def test_key_buttons_change_the_key_and_stop_at_the_limits(qtbot, panel, stems_folder):
+    load(qtbot, panel, stems_folder)
+    assert panel._key.text() == "original"
+    panel._key_up.click()
+    assert panel._key.text() == "+1"
+    assert panel._player._semitones == 1
+    for _ in range(8):
+        panel._key_up.click()
+    assert panel._key.text() == "+6"
+    assert not panel._key_up.isEnabled()
+    for _ in range(12):
+        panel._key_down.click()
+    assert panel._key.text() == "-6"
+    assert not panel._key_down.isEnabled()
+    assert panel._key_up.isEnabled()
+
+
+def test_closing_a_song_puts_the_key_back(qtbot, panel, stems_folder):
+    load(qtbot, panel, stems_folder)
+    panel._key_up.click()
+    panel.close_song()
+    load(qtbot, panel, stems_folder)
+    assert panel._key.text() == "original"
+    assert panel._player._semitones == 0
+
+
+def test_chord_on_screen_follows_the_position_and_the_key(qtbot, panel, tmp_path):
+    folder = tmp_path / "acordes"
+    folder.mkdir()
+    write_wav(folder / "other.wav", chord_song())
+    load(qtbot, panel, folder)
+    assert panel._chord.text() == "C"
+    assert panel._next_chord.text() == "depois: G"
+    panel._seek_frame(SAMPLE_RATE * 5)
+    assert panel._chord.text() == "G"
+    assert panel._next_chord.text() == ""
+    panel._key_up.click()
+    panel._key_up.click()
+    assert panel._chord.text() == "A"
+
+
+def test_noise_or_drums_show_no_chord_without_failing(qtbot, panel, tmp_path):
+    folder = tmp_path / "bateria"
+    folder.mkdir()
+    write_wav(folder / "drums.wav", noise(2.0))
+    load(qtbot, panel, folder)
+    assert panel._chord.text() == "—"
+    assert panel._next_chord.text() == ""
+
+
+def test_export_uses_the_key_in_use(qtbot, panel, stems_folder, tmp_path):
+    load(qtbot, panel, stems_folder)
+    panel._key_up.click()
+    plain = tmp_path / "direta.wav"
+    export_mix([stem.samples for stem in panel._stems], panel._gains(), plain)
+    target = tmp_path / "no tom.wav"
+    panel.export_to(target)
+    qtbot.waitUntil(lambda: panel._exporter is None, timeout=20000)
+    assert target.is_file()
+    assert not np.array_equal(decode(target, 3.0), decode(plain, 3.0))
+
+
+def test_key_buttons_do_not_take_the_space_bar(qtbot, panel, stems_folder):
+    panel.show()
+    load(qtbot, panel, stems_folder)
+    panel._key_up.click()
+    assert panel._key_up.focusPolicy() == Qt.FocusPolicy.NoFocus
+    assert panel._key_down.focusPolicy() == Qt.FocusPolicy.NoFocus
