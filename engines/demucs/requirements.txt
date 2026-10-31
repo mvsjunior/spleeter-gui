@@ -1,0 +1,5 @@
+demucs==4.0.1
+# torchaudio 2.9+ saves through torchcodec, which ignores --int24 and --float32.
+torch==2.8.0
+torchaudio==2.8.0
+soundfile==0.14.0

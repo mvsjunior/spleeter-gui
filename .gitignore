@@ -1,0 +1,7 @@
+.venv/
+engines/*/.venv/
+__pycache__/
+*.db
+.env
+.pytest_cache/
+.ruff_cache/

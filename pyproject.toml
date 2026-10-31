@@ -1,0 +1,35 @@
+[project]
+name = "spleeter-gui"
+version = "0.1.0"
+description = "Aplicativo desktop local para separar músicas em stems e mixá-los"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy>=2",
+    "pyside6-essentials>=6.12,<6.13",
+    "sounddevice>=0.5",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-qt>=4.4",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["uv_build>=0.13,<0.14"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not slow'"
+markers = ["slow: executes a real model (run with: pytest -m slow)"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
