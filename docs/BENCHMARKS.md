@@ -256,7 +256,7 @@ Tempo até a janela aparecer, contando a partida do Python e sem o `uv`, com a v
 
 | Situação | Tempo |
 |---|---|
-| Máquina ocupada (navegador em uso, carga em torno de 10, CPU a 90 °C), com e sem ícone | de 1,07 s a 2,27 s em 16 execuções, a maioria perto de 2 s |
+| Máquina ocupada (navegador em uso, carga em torno de 10, CPU a 90 °C), com e sem ícone | de 0,65 s a 2,38 s em 21 execuções, a maioria perto de 2 s |
 
 As variantes com e sem ícone e nome do app não mostraram diferença. A última medição com a máquina livre é de antes do ícone: de 0,41 s a 0,44 s, com 94 MB. Com a versão final, o processo usa 97 MB. Não foi medida a primeira abertura depois de ligar o computador, sem os arquivos no cache do sistema.
 
